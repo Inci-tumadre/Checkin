@@ -18,19 +18,17 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 </head>
 <body>
 
-<!-- ══════════ PANTALLA CARGANDO ══════════ -->
+<!-- CARGANDO -->
 <div id="s-loading" class="flex items-center justify-center min-h-screen">
   <div class="text-center">
     <div class="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-    <p class="text-slate-500 text-sm">Cargando datos…</p>
+    <p id="loading-txt" class="text-slate-500 text-sm">Cargando datos del alumno…</p>
   </div>
 </div>
 
-<!-- ══════════ PANTALLA PRINCIPAL ══════════ -->
+<!-- PRINCIPAL -->
 <div id="s-main" class="hidden flex items-center justify-center min-h-screen p-4">
 <div class="w-full max-w-sm fade-up">
-
-  <!-- Cabecera -->
   <div class="rounded-3xl text-white text-center px-6 pt-8 pb-10 shadow-xl bg-gradient-to-br from-blue-600 to-indigo-700 relative overflow-hidden">
     <div class="absolute top-0 right-0 w-32 h-32 rounded-full bg-white/10 -translate-y-1/2 translate-x-1/2"></div>
     <div id="avatar" class="w-20 h-20 rounded-full bg-white/25 border-4 border-white/40 flex items-center justify-center text-2xl font-bold mx-auto mb-3">··</div>
@@ -39,16 +37,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     <p id="alu-id" class="text-white/50 text-xs mt-1 font-mono"></p>
   </div>
 
-  <!-- Card -->
   <div class="bg-white rounded-3xl shadow-lg mt-4 p-5 space-y-4">
-
-    <!-- Estado GPS -->
     <div id="geo-box" class="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm bg-amber-50 border border-amber-200 text-amber-800">
-      <span class="text-base flex-shrink-0">📍</span>
+      <span class="flex-shrink-0">📍</span>
       <span id="geo-txt">Obteniendo ubicación GPS…</span>
     </div>
-
-    <!-- Botones -->
     <div class="grid grid-cols-2 gap-3">
       <button id="btn-e" onclick="registrar('Entrada')" disabled
         class="flex flex-col items-center gap-2 bg-emerald-500 text-white font-bold rounded-2xl py-6 text-sm shadow-lg shadow-emerald-200 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition-transform">
@@ -59,16 +52,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
         <span class="text-4xl">🚪</span>SALIDA
       </button>
     </div>
-
-    <!-- Mensaje -->
     <div id="msg" class="hidden rounded-2xl px-4 py-3 text-sm font-medium text-center"></div>
   </div>
-
   <p class="text-center text-xs text-slate-400 mt-4">Sistema de Asistencia · Prácticas</p>
 </div>
 </div>
 
-<!-- ══════════ PANTALLA ÉXITO ══════════ -->
+<!-- ÉXITO -->
 <div id="s-ok" class="hidden fixed inset-0 bg-indigo-50 flex items-center justify-center p-4 z-50">
 <div class="w-full max-w-sm pop">
   <div id="ok-banner" class="rounded-3xl text-white text-center px-6 pt-8 pb-10 shadow-xl">
@@ -90,7 +80,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 </div>
 </div>
 
-<!-- ══════════ PANTALLA QR NO VÁLIDO ══════════ -->
+<!-- 404 -->
 <div id="s-404" class="hidden fixed inset-0 bg-red-50 flex items-center justify-center p-4 z-50">
 <div class="w-full max-w-sm bg-white rounded-3xl shadow-xl p-8 text-center pop">
   <div class="text-6xl mb-4">❌</div>
@@ -101,43 +91,50 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 </div>
 
 <script>
-// ─────────────────────────────────────────────────────────────
-//  ⚠️  CAMBIA ESTA URL POR LA DE TU WEB APP DE APPS SCRIPT
-// ─────────────────────────────────────────────────────────────
+// ── URL de tu Apps Script Web App ────────────────────────────
 var API = "https://script.google.com/macros/s/AKfycbz5soHov-okdO16G5K7JtKcnD629t34kJd8CX63FxP4i61lM4R2EGIlryv7L1tnUXTz/exec";
-// ─────────────────────────────────────────────────────────────
 
 var alumno = null;
 var gLat = null, gLng = null, geoListo = false;
+var cbCount = 0;
 
-// ── Inicializar ───────────────────────────────────────────────
+// ── JSONP: evita CORS 100% ───────────────────────────────────
+function jsonp(url, cb) {
+  var name = "_cb" + (++cbCount);
+  window[name] = function(data) {
+    delete window[name];
+    document.head.removeChild(document.getElementById(name));
+    cb(null, data);
+  };
+  var s = document.createElement("script");
+  s.id  = name;
+  s.src = url + "&callback=" + name;
+  s.onerror = function() {
+    delete window[name];
+    document.head.removeChild(s);
+    cb(new Error("Error de red"));
+  };
+  document.head.appendChild(s);
+}
+
+// ── Init ──────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', function() {
   var id = new URLSearchParams(window.location.search).get('id');
   if (!id) { mostrar404('Sin ID en la URL'); return; }
 
-  fetch(API + "?action=alumno&id=" + encodeURIComponent(id))
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      if (!data || !data.id) { mostrar404(id); return; }
-      alumno = data;
-      rellenarCabecera();
-      ocultar('s-loading');
-      mostrar('s-main');
-      pedirGPS();
-    })
-    .catch(function(err) {
-      document.querySelector('#s-loading p').textContent = 'Error de conexión. Comprueba el internet.';
-    });
+  jsonp(API + "?action=alumno&id=" + encodeURIComponent(id), function(err, data) {
+    if (err || !data || !data.id) { mostrar404(id); return; }
+    alumno = data;
+    document.getElementById('nombre').textContent = alumno.nombre;
+    document.getElementById('alu-id').textContent = '# ' + alumno.id;
+    var pts = alumno.nombre.trim().split(' ');
+    document.getElementById('avatar').textContent =
+      pts.length >= 2 ? (pts[0][0]+pts[1][0]).toUpperCase() : alumno.nombre.substring(0,2).toUpperCase();
+    ocultar('s-loading');
+    mostrar('s-main');
+    pedirGPS();
+  });
 });
-
-// ── Rellenar cabecera ─────────────────────────────────────────
-function rellenarCabecera() {
-  document.getElementById('nombre').textContent  = alumno.nombre;
-  document.getElementById('alu-id').textContent  = '# ' + alumno.id;
-  var pts = alumno.nombre.trim().split(' ');
-  document.getElementById('avatar').textContent  =
-    pts.length >= 2 ? (pts[0][0]+pts[1][0]).toUpperCase() : alumno.nombre.substring(0,2).toUpperCase();
-}
 
 // ── GPS ───────────────────────────────────────────────────────
 function pedirGPS() {
@@ -146,16 +143,16 @@ function pedirGPS() {
   navigator.geolocation.getCurrentPosition(
     function(pos) {
       gLat = pos.coords.latitude; gLng = pos.coords.longitude; geoListo = true;
-      setGeo('ok', '✅ Ubicación lista (±' + Math.round(pos.coords.accuracy) + ' m)');
+      setGeo('ok','✅ Ubicación lista (±' + Math.round(pos.coords.accuracy) + ' m)');
       habilitarBtns(true);
     },
     function(err) {
       var m = '❌ Permiso GPS denegado. Actívalo en ajustes del navegador.';
-      if (err.code === 2) m = '📡 GPS no disponible. Activa la ubicación del móvil.';
-      if (err.code === 3) m = '⏱ Tiempo GPS agotado. Recarga la página.';
+      if (err.code===2) m = '📡 GPS no disponible. Activa la ubicación.';
+      if (err.code===3) m = '⏱ Tiempo GPS agotado. Recarga la página.';
       setGeo('error', m);
     },
-    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    { enableHighAccuracy:true, timeout:15000, maximumAge:0 }
   );
 }
 
@@ -168,7 +165,7 @@ function setGeo(tipo, txt) {
   if (tipo==='carga') el.className += 'bg-amber-50 border-amber-200 text-amber-800';
 }
 
-// ── Registrar check-in ────────────────────────────────────────
+// ── Registrar ─────────────────────────────────────────────────
 function registrar(tipo) {
   if (!geoListo) { showMsg('error','Activa el GPS primero y espera a que se detecte.'); return; }
   habilitarBtns(false);
@@ -181,17 +178,12 @@ function registrar(tipo) {
     + "&lat="  + gLat
     + "&lng="  + gLng;
 
-  fetch(url)
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      habilitarBtns(true); hideMsg();
-      if (data.ok) mostrarExito(data);
-      else         showMsg('error', data.msg || 'Error desconocido.');
-    })
-    .catch(function(err) {
-      habilitarBtns(true);
-      showMsg('error', 'Error de conexión: ' + err.message);
-    });
+  jsonp(url, function(err, data) {
+    habilitarBtns(true); hideMsg();
+    if (err)      { showMsg('error','Error de conexión. Inténtalo de nuevo.'); return; }
+    if (data.ok)  mostrarExito(data);
+    else          showMsg('error', data.msg || 'Error desconocido.');
+  });
 }
 
 // ── Pantalla éxito ────────────────────────────────────────────
@@ -219,11 +211,10 @@ function volver() {
 
 function mostrar404(id) {
   ocultar('s-loading');
-  document.getElementById('bad-id').textContent = id ? 'ID: ' + id : '';
+  document.getElementById('bad-id').textContent = id ? 'ID: '+id : '';
   mostrar('s-404');
 }
 
-// ── Helpers ───────────────────────────────────────────────────
 function mostrar(id) { document.getElementById(id).classList.remove('hidden'); }
 function ocultar(id) { document.getElementById(id).classList.add('hidden'); }
 function habilitarBtns(on) {
